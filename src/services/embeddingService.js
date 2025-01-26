@@ -1,21 +1,24 @@
 const { HfInference } = require('@huggingface/inference');
 const initPinecone = require('../config/pineconeConfig');
 require('dotenv').config();
- const apiKey = process.env.HUGGING_FACE_API_KEY_FOR_EMBEDDINGS
-const hf = new HfInference( apiKey );
+
+const apiKey = process.env.HUGGING_FACE_API_KEY_FOR_EMBEDDINGS;
+const hf = new HfInference(apiKey);
+
+// Generate embeddings for text chunks
 const generateEmbeddings = async (textChunks) => {
-  console.log('Starting to generate embeddings...',textChunks.length);
+  console.log('Starting to generate embeddings...^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^', textChunks.length);
   try {
     const embeddings = await Promise.all(
-      textChunks.map(async (chunk, index) => {
-        console.log(`Processing chunk ${index + 1} with content:`, chunk.content);
-        const response = await hf.featureExtraction({
-          model: 'sentence-transformers/all-MiniLM-L6-v2',
-          inputs: chunk.content
-        });
-        console.log(`Successfully generated embedding for chunk ${index + 1}`);
-        return response;
-      })
+        textChunks.map(async (chunk, index) => {
+          console.log(`Processing chunk ${index + 1} with content:`, chunk.content);
+          const response = await hf.featureExtraction({
+            model: 'sentence-transformers/all-MiniLM-L6-v2', // Example model
+            inputs: chunk.content,
+          });
+          console.log(`Successfully generated embedding for chunk ${index + 1}`);
+          return response;
+        })
     );
 
     console.log('All embeddings generated successfully.');
@@ -26,8 +29,9 @@ const generateEmbeddings = async (textChunks) => {
   }
 };
 
+// Store embeddings in Pinecone
 const storeEmbeddingsInPinecone = async (embeddings, textChunks) => {
-  console.log('Initializing Pinecone... ',embeddings.length);
+  console.log('Initializing Pinecone... ', embeddings.length);
   try {
     const index = await initPinecone();
     console.log('Pinecone initialized successfully.');
@@ -41,8 +45,8 @@ const storeEmbeddingsInPinecone = async (embeddings, textChunks) => {
         chunkNumber: textChunks[i].chunkNumber,
         startWord: textChunks[i].startWord,
         endWord: textChunks[i].endWord,
-        wordCount: textChunks[i].wordCount
-      }
+        wordCount: textChunks[i].wordCount,
+      },
     }));
 
     console.log(`Upserting ${vectors.length} vectors to Pinecone...`);
@@ -56,7 +60,8 @@ const storeEmbeddingsInPinecone = async (embeddings, textChunks) => {
     throw error;
   }
 };
+
 module.exports = {
   generateEmbeddings,
-  storeEmbeddingsInPinecone
+  storeEmbeddingsInPinecone,
 };

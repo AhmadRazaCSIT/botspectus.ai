@@ -1,17 +1,15 @@
 const { HfInference } = require('@huggingface/inference');
 const initPinecone = require('../config/pineconeConfig');
 require('dotenv').config();
-const apiKey = process.env.HUGGING_FACE_API_KEY_FOR_EMBEDDINGS
-const hf = new HfInference( apiKey );
+const apiKey = process.env.HUGGING_FACE_API_KEY_FOR_EMBEDDINGS;
+const hf = new HfInference(apiKey);
 
 module.exports.queryService = async (userQuery) => {
-
-
     try {
         // 1. Generate embedding for the user's query
         const queryEmbedding = await hf.featureExtraction({
             model: 'sentence-transformers/all-MiniLM-L6-v2',
-            inputs: userQuery
+            inputs: [userQuery] // Wrap userQuery in an array
         });
 
         // 2. Initialize Pinecone index
@@ -42,4 +40,4 @@ module.exports.queryService = async (userQuery) => {
         console.error('Error querying Pinecone:', error);
         throw error;
     }
-}
+};

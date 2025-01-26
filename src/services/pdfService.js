@@ -17,7 +17,7 @@ const parsePDF = async (pdfBuffer) => {
                 {
                   hasFormImage: !!pdfData.formImage,
                   hasPages: pdfData.formImage && pdfData.formImage.Pages ? pdfData.formImage.Pages.length : 0,
-                  metadata: pdfData.metadata || {}
+                  metadata: pdfData.metadata || {},
                 },
                 null,
                 2
@@ -32,7 +32,7 @@ const parsePDF = async (pdfBuffer) => {
           text: completeText,
           totalTextLength: completeText.length,
           pageCount: pdfData.formImage && pdfData.formImage.Pages ? pdfData.formImage.Pages.length : 0,
-          metadata: pdfData.metadata || {}
+          metadata: pdfData.metadata || {},
         });
       } catch (err) {
         console.error('Error during PDF data processing:', err);
@@ -116,9 +116,32 @@ const extractFromFormImagePages = (pages) => {
       .trim();
 };
 
-// Main Function to extract text from PDF
+// Function to split text into chunks of approximately 1000 characters
+const splitTextIntoChunks = (text, chunkSize = 50000) => {
+  const chunks = [];
+  let index = 0;
+
+  while (index < text.length) {
+    let chunkEnd = index + chunkSize;
+    if (chunkEnd > text.length) {
+      chunkEnd = text.length;
+    } else {
+      // Adjust the chunkEnd to the nearest space or punctuation
+      while (chunkEnd < text.length && !/\s|[\.,;!?]/.test(text[chunkEnd])) {
+        chunkEnd++;
+      }
+    }
+
+    chunks.push(text.slice(index, chunkEnd).trim());
+    index = chunkEnd;
+  }
+
+  return chunks;
+};
+
+// Main Function to extract text from PDF and return chunks
 const extractTextFromPDF = async (pdfBuffer) => {
-  console.log('Starting main text extraction process...');
+  console.log('Starting main text extraction process...***********************************************************');
   if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
     console.error('Invalid PDF buffer provided.');
     throw new Error('Invalid PDF buffer provided');
@@ -144,8 +167,28 @@ const extractTextFromPDF = async (pdfBuffer) => {
 
     console.log('PDF processing completed successfully.');
     console.log('Final Extracted Text Length:', result.totalTextLength);
-    console.log('Extracted Text Preview:', result.text.slice(0, 1000));
-    return result;
+
+    // Split the extracted text into chunks
+    const textChunks = splitTextIntoChunks(result.text);
+
+    console.log('Number of chunks created:', textChunks.length);
+    console.log('First chunk preview:', textChunks[0]);
+
+    // Add metadata to each chunk
+    const structuredChunks = textChunks.map((content, index) => ({
+      content,
+      chunkNumber: index + 1,
+      startWord: 0, // You can calculate this if needed
+      endWord: content.split(' ').length, // Word count
+      wordCount: content.split(' ').length,
+    }));
+
+    return {
+      chunks: structuredChunks,
+      totalTextLength: result.totalTextLength,
+      pageCount: result.pageCount,
+      metadata: result.metadata,
+    };
   } catch (error) {
     console.error('Error during PDF extraction:', error.message);
 
@@ -154,7 +197,7 @@ const extractTextFromPDF = async (pdfBuffer) => {
       console.error('Temporary PDF file details:', {
         size: stats.size,
         created: stats.birthtime,
-        modified: stats.mtime
+        modified: stats.mtime,
       });
     } catch (statError) {
       console.error('Could not retrieve temporary file stats:', statError.message);
@@ -165,5 +208,5 @@ const extractTextFromPDF = async (pdfBuffer) => {
 };
 
 module.exports = {
-  extractTextFromPDF
+  extractTextFromPDF,
 };

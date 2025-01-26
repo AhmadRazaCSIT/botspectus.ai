@@ -1,47 +1,44 @@
-module.exports.chunksFormationOfExtractedText = async (extractedData) => {
-    console.log(extractedData)
-    console.log('Starting chunk formation process...');
+const { HfInference } = require('@huggingface/inference');
+const initPinecone = require('../src/config/pineconeConfig');
+require('dotenv').config();
+const apiKey = process.env.HUGGING_FACE_API_KEY_FOR_EMBEDDINGS;
+const hf = new HfInference(apiKey);
 
-    // Ensure extractedData is a string
-    if (typeof extractedData !== 'string') {
-        console.error('Invalid input: extractedData is not a string. Type:', typeof extractedData);
-        throw new Error('Invalid input: extractedData should be a string');
-    }
-
-    // Handle empty or null extractedData
-    if (!extractedData.trim()) {
-        console.warn('Input extractedData is empty or only contains whitespace.');
-        return [];
-    }
-
-    console.log('Input validation passed. Extracting chunks...');
-
-    const chunkSize = 500;
-    const words = extractedData.split(/\s+/);
-    const totalWords = words.length;
-    console.log(`Total words in input: ${totalWords}`);
-
-    const textChunks = [];
-
-    for (let i = 0; i < totalWords; i += chunkSize) {
-        const chunks = words.slice(i, i + chunkSize).join(' ');
-        const chunkData = {
-            chunkNumber: textChunks.length + 1,
-            startWord: i,
-            endWord: Math.min(i + chunkSize, totalWords),
-            content: chunks,
-            wordCount: chunks.split(/\s+/).length
-        };
-
-        textChunks.push(chunkData);
-
-        console.log(`Chunk ${chunkData.chunkNumber} created:`, {
-            startWord: chunkData.startWord,
-            endWord: chunkData.endWord,
-            wordCount: chunkData.wordCount
+module.exports.queryService = async (userQuery) => {
+    console.log('userQuery:', userQuery);
+    try {
+        // 1. Generate embedding for the user's query
+        const queryEmbedding = await hf.featureExtraction({
+            model: 'sentence-transformers/all-MiniLM-L6-v2',
+            inputs: userQuery // Pass userQuery as a string
         });
-    }
 
-    console.log(`Chunk formation completed. Total chunks created: ${textChunks.length}`);
-    return textChunks;
+        // 2. Initialize Pinecone index
+        const index = await initPinecone();
+
+        // 3. Perform a similarity search
+        const queryResponse = await index.query({
+            topK: 5,
+            vector: queryEmbedding,
+            includeMetadata: true
+        });
+
+        // 4. Extract the exact value
+        if (queryResponse.matches && queryResponse.matches.length > 0) {
+            // Sort matches by similarity score to get the most relevant
+            const topMatches = queryResponse.matches.sort((a, b) => b.score - a.score);
+
+            // Get the most similar match's metadata
+            const mostRelevantMatch = topMatches[0];
+
+            // Directly return the value from the metadata
+            return mostRelevantMatch.metadata.value || "No matching value found.";
+        }
+
+        return "No matching value found.";
+
+    } catch (error) {
+        console.error('Error querying Pinecone:', error);
+        throw error;
+    }
 };

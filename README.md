@@ -1,1 +1,0 @@
-# botspectus.ai

@@ -1,11 +1,12 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const Groq = require('groq-sdk');
 require('dotenv').config();
-const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
+const apiKey = process.env.GROQ_API_KEY;
+
+const client = new Groq({apiKey});
 
 const refineQuery = async (userQuery, metadata) => {
-  try {
-    // More explicit and structured prompt
-    const prompt = `METADATA ANALYSIS TASK:
+    try {
+        const prompt = `METADATA ANALYSIS TASK:
 
 Query: ${userQuery}
 
@@ -26,32 +27,45 @@ REQUIRED RESPONSE FORMAT:
 
 Response:`;
 
-    const genAi = new GoogleGenerativeAI(apiKey);
-    const model = genAi.getGenerativeModel({ model: "gemini-pro" });
+        console.log('Prompt for Query Refinement:', prompt);
+        const messages = [
+            {
+                "role": "system",
+                "content": "chat with pdf "
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ];
 
-    // More comprehensive error handling
-    const result = await model.generateContent(prompt);
+        const chatCompletion = await client.chat.completions.create({
+            "messages": messages,
+            "model": "llama3-70b-8192",
+            "temperature": 1,
+            "max_tokens": 1024,
+            "top_p": 1,
+            "stream": true,
+            "stop": null
+        });
 
-    // Multiple fallback mechanisms for response extraction
-    const responseText =
-        result?.response?.candidates?.[0]?.content?.parts?.[0]?.text ||
-        result?.response?.text() ||
-        JSON.stringify(result) ||
-        "No valid response generated";
+        let responseText = '';
+        for await (const chunk of chatCompletion) {
+            responseText += chunk.choices[0]?.delta?.content || '';
+        }
 
-    console.log('Refined Query Result:', responseText);
-    return responseText.trim();
+        console.log('Refined Query Result:', responseText);
+        return responseText.trim();
 
-  } catch (error) {
-    console.error('Detailed Error in Query Refinement:', error);
+    } catch (error) {
+        console.error('Detailed Error in Query Refinement:', error);
 
-    // More informative error handling
-    if (error.message.includes('API key')) {
-      throw new Error('Invalid or missing Google Gemini API key');
+        if (error.message.includes('API key')) {
+            throw new Error('Invalid or missing Groq API key');
+        }
+
+        throw error;
     }
-
-    throw error;
-  }
 };
 
 module.exports = { refineQuery };
